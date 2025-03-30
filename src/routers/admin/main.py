@@ -23,23 +23,30 @@ def get_db():
     finally:
         db.close()
 
+
+
 # Dependency to ensure admin role
 def get_admin_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    try:
-        email = get_email_from_token(token)
-        user = db.query(users_model).filter(users_model.email == email).first()
-        if not user or user.role != "admin":
+    email = get_email_from_token(token)
+    user = db.query(users_model).filter(users_model.email == email).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    print(f"user.role---{user.id}---{user.role}")
+
+    # Check if user.role is a string or Enum instance
+    if isinstance(user.role, str):
+        if user.role.lower() != "admin":  # Direct string comparison
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this resource. Admin role required."
+                detail="Admin role required."
             )
-        return user
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+
+    return user
 
 # Admin router
 admin_router = APIRouter(
