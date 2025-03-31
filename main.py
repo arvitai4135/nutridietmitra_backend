@@ -1,8 +1,8 @@
 import uvicorn
 from fastapi.responses import RedirectResponse
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from src.routers import users_router, feedback_router,dashboard_route, appoitment_router
+from src.routers import users_router, feedback_router,dashboard_route, appoitment_router, admin_router, payment_router
 from src.config import APPNAME, VERSION
 
 # Defining the application
@@ -32,6 +32,8 @@ app.add_middleware(
 app.include_router(users_router)
 app.include_router(feedback_router)
 app.include_router(appoitment_router)
+app.include_router(admin_router)
+app.include_router(payment_router)
 
 @app.get("/")
 def main_function():
@@ -39,6 +41,8 @@ def main_function():
     Redirect to documentation (`/docs/`).
     """
     return RedirectResponse(url="/docs/")
+
+
 
 @app.post("/token")
 def forward_to_login():
