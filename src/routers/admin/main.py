@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordBearer
 # from . import models
 from src.routers.users.models import User as users_model
 from src.routers.appoitment.models import Appointment
+from src.routers.payment.models import Payment
 from . import schema
 from typing import List
 
@@ -199,4 +200,36 @@ def update_appointment(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while updating the appointment."
+        )
+    
+# API to list all pending and successful payments
+@admin_router.get("/payments", response_model=schema.AdminPaymentListResponse)
+def list_payments_by_status(
+    status: str,  # Query parameter for payment status ("pending" or "success")
+    db: Session = Depends(get_db),
+    admin_user = Depends(get_admin_user)
+):
+    """
+    Retrieve a list of all payments filtered by status (pending or success) for the admin panel.
+    """
+    try:
+        if status.lower() not in ["pending", "successful"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid status. Use 'pending' or 'success'."
+            )
+        
+        payments = db.query(Payment).filter(Payment.link_status == status.lower()).all()
+        print(f"payments---------{payments}")
+        return {
+            "success": True,
+            "status": 200,
+            "message": f"{status.capitalize()} payments retrieved successfully",
+            "data": payments
+        }
+    except Exception as e:
+        logging.error(f"Error retrieving {status} payments: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred while retrieving {status} payments."
         )

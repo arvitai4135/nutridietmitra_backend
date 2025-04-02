@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, condecimal
 from typing import Optional, List
 from datetime import datetime
 import enum
@@ -95,3 +95,27 @@ class AdminAppointmentResponse(BaseModel):
     status: int
     message: str
     data: AdminAppointmentData
+
+
+class AdminPaymentResponse(BaseModel):
+    id: int
+    user_id: int
+    cf_link_id: Optional[str]
+    transaction_id: Optional[str]
+    link_id: Optional[str]
+    link_url: Optional[str]
+    amount: condecimal(max_digits=10, decimal_places=2)
+    currency: str
+    status: str
+    link_status: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class AdminPaymentListResponse(BaseModel):
+    success: bool
+    status: int
+    message: str
+    data: List[AdminPaymentResponse]
