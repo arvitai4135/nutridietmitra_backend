@@ -13,6 +13,7 @@ class CreatePaymentLinkSchema(BaseModel):
     customer_name: str = Field(..., max_length=100)
     customer_email: str
     customer_phone: str = Field(..., pattern=r"^\+?[1-9]\d{1,14}$")  # E.164 format
+    plan_type: str
 
 # Schema for storing the response when a payment link is created
 class PaymentLinkResponseSchema(BaseModel):
