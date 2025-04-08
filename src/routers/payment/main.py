@@ -78,6 +78,19 @@ def create_payment_link(
         )
     from datetime import datetime, timezone, timedelta
 
+
+    plan_months = {
+        "1 month": 1,
+        "2 month": 2,
+        "3 month": 3,
+        "6 month": 6
+    }
+    if request_data.plan_type not in plan_months:
+        raise HTTPException(status_code=400, detail="Invalid plan_type")
+    
+    subscription_end = datetime.now(timezone.utc) + timedelta(days=30 * plan_months[request_data.plan_type])
+
+
     # Set expiration time (e.g., 24 hours from now)
     expiry_time = datetime.now(timezone.utc) + timedelta(hours=24)
 
@@ -133,6 +146,8 @@ def create_payment_link(
         amount=request_data.amount,
         currency=request_data.currency,
         link_status=PaymentStatusEnum.pending,
+        plan_type=request_data.plan_type,  # ✅ new field
+        subscription_end=subscription_end
     )
 
     db.add(new_payment)

@@ -233,3 +233,60 @@ def list_payments_by_status(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while retrieving {status} payments."
         )
+from sqlalchemy import func, and_
+from datetime import datetime, timedelta
+
+@admin_router.get("/payments/expiring", response_model=schema.AdminPaymentListResponse)
+def list_expiring_payments(
+    db: Session = Depends(get_db),
+    admin_user = Depends(get_admin_user)
+):
+    """
+    Retrieve the latest successful payment for each user where the subscription is expiring within 2 days.
+    """
+    try:
+        # Current UTC time + 2 days
+        threshold_date = datetime.utcnow() + timedelta(days=2)
+
+        # Subquery to get the latest payment for each user
+        subquery = (
+            db.query(
+                Payment.user_id,
+                func.max(Payment.created_at).label("latest_payment")
+            )
+            .filter(
+                and_(
+                    Payment.link_status == "successful",
+                    Payment.subscription_end <= threshold_date
+                )
+            )
+            .group_by(Payment.user_id)
+            .subquery()
+        )
+
+        # Join back to Payment to get full records
+        payments = (
+            db.query(Payment)
+            .join(
+                subquery,
+                and_(
+                    Payment.user_id == subquery.c.user_id,
+                    Payment.created_at == subquery.c.latest_payment
+                )
+            )
+            .all()
+        )
+
+        return {
+            "success": True,
+            "status": 200,
+            "message": "Expiring payments retrieved successfully",
+            "data": payments
+        }
+
+    except Exception as e:
+        logging.error(f"Error retrieving expiring payments: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while retrieving expiring payments."
+        )

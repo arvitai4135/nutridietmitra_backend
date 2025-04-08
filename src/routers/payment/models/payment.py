@@ -4,6 +4,8 @@ from sqlalchemy.sql import func
 # from .models import Base  # Ensure this imports from the correct place
 from sqlalchemy.ext.declarative import declarative_base
 from src.routers.users.models.users import User
+from sqlalchemy import Column, DateTime
+from datetime import datetime, timezone
 
 
 Base = declarative_base()
@@ -23,6 +25,8 @@ class Payment(Base):
     link_status = Column(String(20))  # Link Status (ACTIVE, EXPIRED, etc.)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
+    plan_type = Column(String)  # ✅ Add this
+    subscription_end = Column(DateTime(timezone=True))
 
 
 
