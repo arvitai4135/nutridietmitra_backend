@@ -35,29 +35,18 @@ def create_appointment(request: Request, appointment: schema.CreateAppointmentSc
         logging.info(f"Appointment creation attempt for email: {appointment.email}, mobile: {appointment.mobile_number}")
 
         # Get the email from the token
-        token = request.headers.get("Authorization")
-        token = token.split(" ")[1]
-        email = get_email_from_token(token)
-
-        # Check if a user with the same email exists (assuming appointments are tied to users)
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found, cannot create appointment",
-            )
-
+        email = appointment.email
         # Check if the user already has an active appointment
-        existing_appointment = db.query(models.Appointment).filter(
-            models.Appointment.email == email, models.Appointment.status == "active"
-        ).first()
+        # existing_appointment = db.query(models.Appointment).filter(
+        #     models.Appointment.email == email, models.Appointment.status == "active"
+        # ).first()
 
-        if existing_appointment:
-            return {
-                "success": False,
-                "status": 400,
-                "message": "You already have an active appointment scheduled.You can update existing appointment.",
-            }
+        # if existing_appointment:
+        #     return {
+        #         "success": False,
+        #         "status": 400,
+        #         "message": "You already have an active appointment scheduled.You can update existing appointment.",
+        #     }
 
         # Create the appointment instance
         new_appointment = models.Appointment(
@@ -73,7 +62,7 @@ def create_appointment(request: Request, appointment: schema.CreateAppointmentSc
         db.add(new_appointment)
         db.commit()
         db.refresh(new_appointment)
-        controller.send_password_reset_email(email=user.email)
+        controller.send_password_reset_email(email=email)
         
         # Return success response
         return {
