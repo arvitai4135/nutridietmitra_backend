@@ -1,6 +1,6 @@
 import requests
 import enum
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
@@ -51,58 +51,58 @@ class PaymentStatusEnum(str, enum.Enum):
 
 @router.post("/create-payment-link", response_model=dict)
 def create_payment_link(
-    request: Request,  # ✅ Pass the FastAPI Request object
+    request: Request,
     request_data: CreatePaymentLinkSchema = Body(...),
     db: Session = Depends(get_db),
-    token: str = Depends(oauth2_scheme)  # OAuth2 authentication
+    token: str = Depends(oauth2_scheme)
 ):
     """
     API to generate a Cashfree payment link and store details in the database.
     """
     logging.debug("Create payment link function called")
 
-    # ✅ Get the email from the token correctly
     auth_header = request.headers.get("Authorization")
     if not auth_header or "Bearer " not in auth_header:
         raise HTTPException(status_code=401, detail="Invalid or missing authorization token")
-    
-    token = auth_header.split(" ")[1]
-    email = get_email_from_token(token)  # Extract email from token
 
-    # ✅ Check if user exists
+    token = auth_header.split(" ")[1]
+    email = get_email_from_token(token)
+
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found, cannot create appointment",
         )
-    from datetime import datetime, timezone, timedelta
 
-
+    # Plan durations in months
     plan_months = {
-        "1 month": 1,
-        "2 month": 2,
-        "3 month": 3,
-        "6 month": 6
+        "one_month": 1,
+        "two_months": 2,
+        "three_months": 3,
+        "six_months": 6,
+        "single_meal": 0,
+        "weekly_meal_plan": 0,
+        "monthly_meal_plan": 1,
+        "custom": 0,
     }
+
     if request_data.plan_type not in plan_months:
         raise HTTPException(status_code=400, detail="Invalid plan_type")
-    
-    subscription_end = datetime.now(timezone.utc) + timedelta(days=30 * plan_months[request_data.plan_type])
 
+    # Set subscription end only for plans with duration
+    duration = plan_months[request_data.plan_type]
+    subscription_end = (
+        datetime.now(timezone.utc) + timedelta(days=30 * duration)
+        if duration > 0 else None
+    )
 
-    # Set expiration time (e.g., 24 hours from now)
     expiry_time = datetime.now(timezone.utc) + timedelta(hours=24)
-
-    # Convert to correct ISO8601 format with timezone offset
     formatted_expiry_time = expiry_time.isoformat(timespec="seconds")
-    # try:
-    # Cashfree API Details
-    cashfree_url = "https://sandbox.cashfree.com/pg/links"
-    
+
     random_number = random.randint(100, 999)
     link_id = f"{user.id}{random_number}"
-    # Construct request payload
+
     payload = {
         "customer_details": {
             "customer_email": request_data.customer_email,
@@ -115,12 +115,11 @@ def create_payment_link(
         "link_purpose": request_data.link_purpose,
         "link_id": link_id,
         "link_meta": {
-            "notify_url": str(request_data.notify_url) if request_data.notify_url else "",
-            "return_url": str(request_data.return_url) if request_data.return_url else "",
+            "notify_url": "https://ee08e626ecd88c61c85f5c69c0418cb5.m.pipedream.net",
+            "return_url": "https://www.cashfree.com/devstudio/thankyou",
         },
         "link_notify": {"send_email": True},
     }
-    
 
     headers = {
         "x-api-version": X_API_VERSION,
@@ -128,26 +127,27 @@ def create_payment_link(
         "x-client-secret": X_CLIENT_SECRET,
         "Content-Type": "application/json"
     }
-    # Send request to Cashfree
-    response = requests.post(cashfree_url, json=payload, headers=headers)
-    if response.status_code != 200:
-        logging.error(f"Failed to create payment link: {response.json()}")
+
+    try:
+        response = requests.post("https://sandbox.cashfree.com/pg/links", json=payload, headers=headers)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        logging.error(f"Failed to create payment link: {e}")
         raise HTTPException(status_code=400, detail="Failed to create payment link")
 
     response_data = response.json()
     logging.info(f"Payment link created successfully: {response_data}")
 
-    # Store payment record in database
     new_payment = Payment(
-        user_id=user.id,  # ✅ Use the logged-in user's ID
+        user_id=user.id,
         cf_link_id=response_data["cf_link_id"],
         link_id=response_data["link_id"],
         link_url=response_data["link_url"],
         amount=request_data.amount,
         currency=request_data.currency,
         link_status=PaymentStatusEnum.pending,
-        plan_type=request_data.plan_type,  # ✅ new field
-        subscription_end=subscription_end
+        plan_type=request_data.plan_type,
+        subscription_end=subscription_end,
     )
 
     db.add(new_payment)
@@ -159,16 +159,6 @@ def create_payment_link(
         "message": "Payment link created successfully",
         "data": {"link_url": response_data["link_url"]}
     }
-
-    # except Exception as e:
-    #     logging.error(f"Error in create_payment_link: {e}")
-    #     return {
-    #         "success": False,
-    #         "status": 500,
-    #         "message": "An unexpected error occurred. Please try again later.",
-    #         "data": None
-    #     }
-
 
 # ------------------- 2️⃣ Webhook - Update Payment -------------------
 @router.post("/cashfree-webhook")
