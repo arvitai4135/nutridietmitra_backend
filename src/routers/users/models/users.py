@@ -24,7 +24,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     phone_number = Column(String(15), unique=True)
     password = Column(String(255), nullable=False)
-    role = Column(Enum(UserRole), nullable=False)
+    role = Column(String(50), nullable=False)
     profile_path = Column(String(255), default="default.jpg")
     status = Column(Enum(UserStatus), default=UserStatus.active)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())

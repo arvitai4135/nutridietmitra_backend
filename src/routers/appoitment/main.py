@@ -144,6 +144,88 @@ def get_active_appointment(request: Request, db: Session = Depends(get_db)):
             detail="An unexpected error occurred. Please try again later.",
         )
 
+from src.routers.users.schemas import UserRoleEnum  # Make sure you import UserRole if it's an enum
+@router.get("/appointments", status_code=200)
+def get_all_appointments(request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint for admin to get the list of all appointments.
+    """
+    try:
+        # Get the email from the token
+        token = request.headers.get("Authorization")
+        if not token:
+            return {
+                "success": False,
+                "status": 401,
+                "message": "Authorization token missing",
+                "data": None
+            }
+        
+        token = token.split(" ")[1]  # Assuming token is passed as "Bearer <token>"
+        email = get_email_from_token(token)
+
+        # Check if the user exists
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "User not found",
+                "data": None
+            }
+
+        # Log the user's role to diagnose the issue
+        logging.info(f"User role: {user.role}")
+
+        # Check if user is admin
+        if user.role != "admin":
+            return {
+            "success": False,
+                "status": 403,
+                "message": "You are not authorized to access this resource",
+                "data": None
+                }
+
+        # Query all appointments
+        appointments = db.query(models.Appointment).all()
+
+        if not appointments:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "No appointments found",
+                "data": []
+            }
+
+        # Prepare the appointment list
+        appointments_list = []
+        for appointment in appointments:
+            appointments_list.append({
+                "id": appointment.id,
+                "name": appointment.name,
+                "email": appointment.email,
+                "mobile_number": appointment.mobile_number,
+                "medical_issue": appointment.medical_issue,
+                "message": appointment.message,
+                "status": appointment.status,
+            })
+
+        return {
+            "success": True,
+            "status": 200,
+            "message": "Appointments fetched successfully",
+            "data": appointments_list
+        }
+
+    except Exception as e:
+        logging.error(f"An error occurred while fetching appointments: {e}")
+        return {
+            "success": False,
+            "status": 500,
+            "message": "An unexpected error occurred. Please try again later.",
+            "data": None
+        }
+
 
 @router.delete("/delete/{appointment_id}", status_code=200)
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
