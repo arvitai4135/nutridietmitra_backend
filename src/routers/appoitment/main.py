@@ -207,6 +207,7 @@ def get_all_appointments(request: Request, db: Session = Depends(get_db)):
                 "mobile_number": appointment.mobile_number,
                 "medical_issue": appointment.medical_issue,
                 "message": appointment.message,
+                "dates_time": appointment.created_at.strftime('%b %d, %Y, %I:%M %p'),
                 "status": appointment.status,
             })
 

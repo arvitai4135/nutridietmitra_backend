@@ -223,3 +223,84 @@ async def cashfree_webhook(
             "message": "An unexpected error occurred",
             "data": None
         }
+
+
+@router.get("/payments/history", status_code=200)
+def get_payment_history(request: Request, db: Session = Depends(get_db)):
+    """
+    Admin endpoint to get payment history with user details.
+    """
+    try:
+        # Get the email from the token
+        token = request.headers.get("Authorization")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization token missing",
+            )
+        token = token.split(" ")[1]  # Assuming token is passed as "Bearer <token>"
+        email = get_email_from_token(token)
+
+        # Check if the user is an admin
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "Admin user not found",
+                "data": None
+            }
+
+        if user.role != "admin":
+            return {
+                "success": False,
+                "status": 403,
+                "message": "You are not authorized to access this resource",
+                "data": None
+            }
+
+        # Query all payments
+        payments = db.query(Payment).all()
+
+        if not payments:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "No payment records found",
+                "data": None
+            }
+
+        # Prepare payment history list
+        payment_history = []
+        for payment in payments:
+            # Get user details linked to this payment
+            linked_user = db.query(User).filter(User.id == payment.user_id).first()
+
+            if not linked_user:
+                continue  # Skip if user doesn't exist (shouldn't normally happen)
+
+            payment_history.append({
+                "name": linked_user.full_name,
+                "email": linked_user.email,
+                "phone_number": linked_user.phone_number,
+                "address": None, # if payment.address else None,
+                "play_type": payment.plan_type,
+                "price": payment.amount,
+                "start_date": payment.created_at.strftime('%b %d, %Y, %I:%M %p') if payment.created_at else None,
+                "end_date": payment.subscription_end.strftime('%b %d, %Y, %I:%M %p') if payment.subscription_end else None,
+            })
+
+
+        return {
+            "success": True,
+            "status": 200,
+            "message": "Payment history fetched successfully",
+            "data": payment_history
+        }
+
+    except Exception as e:
+        logging.error(f"An error occurred while fetching payment history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred. Please try again later.",
+        )
