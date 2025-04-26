@@ -103,9 +103,9 @@ def create_payment_link(
 
     expiry_time = datetime.now(timezone.utc) + timedelta(hours=24)
     formatted_expiry_time = expiry_time.isoformat(timespec="seconds")
-
-    random_number = random.randint(100, 999)
-    link_id = f"{user.id}{random_number}"
+    import uuid
+    unique_id = uuid.uuid4().hex  # Generate a unique identifier
+    link_id = f"{user.id}_{unique_id}"
 
     payload = {
         "customer_details": {

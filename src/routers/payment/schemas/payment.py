@@ -4,7 +4,6 @@ from datetime import datetime
 
 # Schema for creating a payment link request
 class CreatePaymentLinkSchema(BaseModel):
-    user_id: int
     amount: float = Field(..., gt=0)  # Ensure amount is greater than 0
     currency: str = Field(default="INR", max_length=3)
     link_purpose: str = Field(..., max_length=255)
