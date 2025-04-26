@@ -20,9 +20,13 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 load_dotenv()
 
-X_API_VERSION = os.getenv('X_API_VERSION') 
-X_CLIENT_ID = os.getenv('X_CLIENT_ID')
-X_CLIENT_SECRET = os.getenv('X_CLIENT_SECRET')
+# X_API_VERSION = os.getenv('X_API_VERSION') 
+# X_CLIENT_ID = os.getenv('X_CLIENT_ID')
+# X_CLIENT_SECRET = os.getenv('X_CLIENT_SECRET')
+X_API_VERSION = "2025-01-01"#os.getenv('X_API_VERSION', 'v1')  # Default version 'v1'
+X_CLIENT_ID = "TEST10336412a92793060b4d3d8cd83521463301"#os.getenv('X_CLIENT_ID', 'default-client-id')
+X_CLIENT_SECRET ="cfsk_ma_test_aff7e27bb247244e4bde9c8c7e77d9c7_489509d5" #os.getenv('X_CLIENT_SECRET', 'default-secret-key')
+
 
 # Dependency to get database session
 db_util = Database()
