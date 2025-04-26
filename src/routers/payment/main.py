@@ -280,9 +280,11 @@ def get_payment_history(request: Request, db: Session = Depends(get_db)):
                 continue  # Skip if user doesn't exist (shouldn't normally happen)
 
             payment_history.append({
+                "user_id":linked_user.id,
                 "name": linked_user.full_name,
                 "email": linked_user.email,
                 "phone_number": linked_user.phone_number,
+                "payment_id":payment.id,
                 "address": None, # if payment.address else None,
                 "play_type": payment.plan_type,
                 "price": payment.amount,
