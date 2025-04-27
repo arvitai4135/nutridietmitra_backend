@@ -1,5 +1,6 @@
 import os
 import enum
+import uuid
 import requests
 from . import  utilities
 from sqlalchemy import func
@@ -48,7 +49,6 @@ class PaymentStatusEnum(str, enum.Enum):
     successful = "successful"
     failed = "failed"
 
-
 @router.post("/create-payment-link", response_model=dict)
 def create_payment_link(
     request: Request,
@@ -57,8 +57,9 @@ def create_payment_link(
     token: str = Depends(oauth2_scheme)
 ):
     """
-    API to generate a Cashfree payment link and store details in the database.
+    API to generate a Cashfree payment link and store/update details in the database.
     """
+
     logging.debug("Create payment link function called")
 
     auth_header = request.headers.get("Authorization")
@@ -90,16 +91,15 @@ def create_payment_link(
     if request_data.plan_type not in plan_months:
         raise HTTPException(status_code=400, detail="Invalid plan_type")
 
-    # Set subscription end only for plans with duration
-    duration = plan_months[request_data.plan_type]
-    subscription_end = (
-        datetime.now(timezone.utc) + timedelta(days=30 * duration)
-        if duration > 0 else None
-    )
+    meal_plans = ["single_meal", "weekly_meal_plan", "monthly_meal_plan"]
+    month_plans = ["one_month", "two_months", "three_months", "six_months"]
+
+    is_meal_plan = request_data.plan_type in meal_plans
+    is_month_plan = request_data.plan_type in month_plans
 
     expiry_time = datetime.now(timezone.utc) + timedelta(hours=24)
     formatted_expiry_time = expiry_time.isoformat(timespec="seconds")
-    import uuid
+
     unique_id = uuid.uuid4().hex  # Generate a unique identifier
     link_id = f"{user.id}_{unique_id}"
 
@@ -138,19 +138,69 @@ def create_payment_link(
     response_data = response.json()
     logging.info(f"Payment link created successfully: {response_data}")
 
-    new_payment = Payment(
-        user_id=user.id,
-        cf_link_id=response_data["cf_link_id"],
-        link_id=response_data["link_id"],
-        link_url=response_data["link_url"],
-        amount=request_data.amount,
-        currency=request_data.currency,
-        link_status=PaymentStatusEnum.pending,
-        plan_type=request_data.plan_type,
-        subscription_end=subscription_end,
-    )
+    # Check existing payments
+    previous_payments = db.query(Payment).filter(
+        Payment.user_id == user.id,
+    ).all()
 
-    db.add(new_payment)
+    matching_payment = None
+
+    # Check if any previous record is of the same plan_type
+    for payment in previous_payments:
+        if payment.plan_type == request_data.plan_type:
+            matching_payment = payment
+            break
+
+    # Check if category (meal or month) changed
+    category_changed = False
+    for payment in previous_payments:
+        if (
+            (payment.plan_type in meal_plans and request_data.plan_type in month_plans)
+            or (payment.plan_type in month_plans and request_data.plan_type in meal_plans)
+        ):
+            category_changed = True
+            break
+
+    if matching_payment and not category_changed:
+        # Same plan_type and same category -> update existing record
+        logging.info(f"Updating existing payment for user_id={user.id}, plan_type={request_data.plan_type}")
+
+        matching_payment.cf_link_id = response_data["cf_link_id"]
+        matching_payment.link_id = response_data["link_id"]
+        matching_payment.link_url = response_data["link_url"]
+        matching_payment.amount = request_data.amount
+        matching_payment.currency = request_data.currency
+        matching_payment.link_status = PaymentStatusEnum.pending
+
+        if is_month_plan:
+            if matching_payment.subscription_end and matching_payment.subscription_end > datetime.now(timezone.utc):
+                matching_payment.subscription_end += timedelta(days=30 * plan_months[request_data.plan_type])
+            else:
+                matching_payment.subscription_end = datetime.now(timezone.utc) + timedelta(days=30 * plan_months[request_data.plan_type])
+        else:
+            matching_payment.subscription_end = None
+
+    else:
+        # Different plan or category changed -> create new payment
+        logging.info(f"Creating new payment for user_id={user.id}, plan_type={request_data.plan_type}")
+
+        subscription_end = None
+        if is_month_plan:
+            subscription_end = datetime.now(timezone.utc) + timedelta(days=30 * plan_months[request_data.plan_type])
+
+        new_payment = Payment(
+            user_id=user.id,
+            cf_link_id=response_data["cf_link_id"],
+            link_id=response_data["link_id"],
+            link_url=response_data["link_url"],
+            amount=request_data.amount,
+            currency=request_data.currency,
+            link_status=PaymentStatusEnum.pending,
+            plan_type=request_data.plan_type,
+            subscription_end=subscription_end,
+        )
+        db.add(new_payment)
+
     db.commit()
 
     return {
@@ -183,10 +233,11 @@ async def cashfree_webhook(
         transaction_id = str(order_data.get("transaction_id", ""))
         amount_paid = float(payment_data.get("link_amount_paid", 0))
         payment_status = order_data.get("transaction_status", "").lower()
+        logging.error(f"Payment_status is :{payment_status}")
 
         # Map payment status
         status_map = {"success": PaymentStatusEnum.successful, "failed": PaymentStatusEnum.failed, "pending": PaymentStatusEnum.pending}
-        payment_status = status_map.get(payment_status, PaymentStatusEnum.pending)
+        payment_status_data = status_map.get(payment_status, PaymentStatusEnum.pending)
 
         # Find the existing payment record
         payment = db.query(Payment).filter(Payment.cf_link_id == cf_link_id).first()
@@ -197,6 +248,7 @@ async def cashfree_webhook(
         # Update payment record
         payment.transaction_id = transaction_id
         payment.amount_paid = amount_paid
+        payment.status = payment_status
         payment.link_status = payment_status
         payment.updated_at = func.current_timestamp()
 

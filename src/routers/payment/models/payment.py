@@ -21,7 +21,7 @@ class Payment(Base):
     link_url = Column(Text)  # Payment link URL
     amount = Column(Numeric(10,2), nullable=False)  # Payment Amount
     currency = Column(String(10), default="INR")  # Currency (Default INR)
-    status = Column(String(20), default="pending")  # Payment Status
+    status = Column(String(20))  # Payment Status
     link_status = Column(String(20))  # Link Status (ACTIVE, EXPIRED, etc.)
     created_at = Column(TIMESTAMP, server_default=func.current_timestamp())
     updated_at = Column(TIMESTAMP, server_default=func.current_timestamp(), onupdate=func.current_timestamp())
