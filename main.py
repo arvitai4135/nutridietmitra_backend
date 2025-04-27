@@ -19,11 +19,13 @@ app = FastAPI(
 
 # Define allowed origins
 origins = [
-    "http://localhost:5173",  # Frontend during development
-    "http://127.0.0.1:5173"  # Alternate localhost
-    #"http://ec2-3-219-12-193.compute-1.amazonaws.com:5173"
-    # "http://ec2-3-219-12-193.compute-1.amazonaws.com",
+    "http://localhost:5173",    # Frontend during development
+    "http://127.0.0.1:5173",    # Alternate localhost
+    "http://localhost:3000",    # Frontend during development
+    "http://127.0.0.1:3000",    # Alternate localhost
+    "https://nutridietmitra.com"  # Production domain
 ]
+
 
 # Add CORS middleware
 app.add_middleware(
