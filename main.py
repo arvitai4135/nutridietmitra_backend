@@ -2,8 +2,14 @@ import uvicorn
 from fastapi.responses import RedirectResponse
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from src.routers import users_router, feedback_router,dashboard_route, appoitment_router, admin_router, payment_router
 from src.config import APPNAME, VERSION
+from src.routers import (users_router, 
+                         feedback_router,
+                         dashboard_route, 
+                         appoitment_router, 
+                         admin_router, 
+                         payment_router,
+                         blog_router)
 
 # Defining the application
 app = FastAPI(
@@ -34,6 +40,7 @@ app.include_router(feedback_router)
 app.include_router(appoitment_router)
 app.include_router(admin_router)
 app.include_router(payment_router)
+app.include_router(blog_router)
 
 @app.get("/")
 def main_function():

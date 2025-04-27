@@ -9,6 +9,7 @@ from .appoitment.models.appoitment import Appointment
 from .payment.main import router as payment_router
 from .payment.models.payment import Payment
 from .payment.schemas.payment import CreatePaymentLinkSchema
+from .blog.main import router as blog_router
 __all__ = [
     "users_router",
     "feedback_router",
@@ -19,5 +20,6 @@ __all__ = [
     "Appointment",
     "payment_router",
     "CreatePaymentLinkSchema",
-    "Payment"
+    "Payment",
+    "blog_router"
            ]

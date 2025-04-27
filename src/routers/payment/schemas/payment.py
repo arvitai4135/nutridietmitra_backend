@@ -42,3 +42,7 @@ class UpdatePaymentSchema(BaseModel):
     transaction_id: Optional[str]
     amount_paid: float
     payment_status: str
+    
+# Request body schema
+class ReminderRequest(BaseModel):
+    user_id: int

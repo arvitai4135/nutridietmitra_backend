@@ -12,7 +12,6 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expires in 1 hour
 EMAIL = os.getenv('EMAIL')
 APP_PASSWORD = os.getenv('APP_PASSWORD')
-S3_BUCKET_NAME = "ai-interview-bot"
 
 def send_password_reset_email(email: str):
     """

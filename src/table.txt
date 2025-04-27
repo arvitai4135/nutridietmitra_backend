@@ -38,3 +38,25 @@ CREATE TABLE appointments (
 
 CREATE INDEX idx_appointments_email ON appointments (email);
 CREATE INDEX idx_appointments_mobile_number ON appointments (mobile_number);
+
+
+CREATE TABLE blogs (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    slug VARCHAR(255) UNIQUE NOT NULL,
+    publish_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    categories TEXT[],
+    body JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Index on publish_date (for sorting latest blogs fast)
+CREATE INDEX idx_blogs_publish_date ON blogs(publish_date DESC);
+
+-- 3. GIN index on categories array (for searching/filtering blogs by category fast)
+CREATE INDEX idx_blogs_categories ON blogs USING GIN (categories);
+
+-- 4. GIN index on body JSONB (for searching inside the blog content if needed later)
+CREATE INDEX idx_blogs_body ON blogs USING GIN (body);

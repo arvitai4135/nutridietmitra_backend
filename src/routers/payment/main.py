@@ -6,7 +6,7 @@ from sqlalchemy import func
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from loguru import logger as logging
 from src.database import Database
-from src.routers.payment.schemas import CreatePaymentLinkSchema, PaymentWebhookSchema
+from src.routers.payment.schemas import CreatePaymentLinkSchema, PaymentWebhookSchema,ReminderRequest
 from src.routers.payment.models import Payment
 from src.utils.jwt import get_email_from_token
 from ..users.models import User
@@ -16,6 +16,7 @@ import os
 from dotenv import load_dotenv
 # OAuth2 token authentication (for securing payment routes)
 from fastapi.security import OAuth2PasswordBearer
+from . import  utilities
 from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 load_dotenv()
@@ -225,7 +226,7 @@ async def cashfree_webhook(
         }
 
 
-@router.get("/payments/history", status_code=200)
+@router.get("/history", status_code=200)
 def get_payment_history(request: Request, db: Session = Depends(get_db)):
     """
     Admin endpoint to get payment history with user details.
@@ -302,6 +303,136 @@ def get_payment_history(request: Request, db: Session = Depends(get_db)):
 
     except Exception as e:
         logging.error(f"An error occurred while fetching payment history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred. Please try again later.",
+        )
+
+
+
+@router.post("/send-subscription-reminder", status_code=200)
+def send_subscription_reminder(request_data: ReminderRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Endpoint to send subscription expiry reminder email to a particular user based on user_id.
+    """
+    try:
+        # Authorization check
+        token = request.headers.get("Authorization")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization token missing",
+            )
+        token = token.split(" ")[1]  # Assuming token is passed as "Bearer <token>"
+        email = get_email_from_token(token)
+
+        # Verify if user is admin
+        admin_user = db.query(User).filter(User.email == email).first()
+        if not admin_user:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "Admin user not found",
+                "data": None
+            }
+
+        if admin_user.role != "admin":
+            return {
+                "success": False,
+                "status": 403,
+                "message": "You are not authorized to access this resource",
+                "data": None
+            }
+
+        # Get the user and their latest payment info
+        user = db.query(User).filter(User.id == request_data.user_id).first()
+        if not user:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "User not found",
+                "data": None
+            }
+
+        payment = db.query(Payment).filter(Payment.user_id == user.id).order_by(Payment.created_at.desc()).first()
+        if not payment:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "No payment record found for this user",
+                "data": None
+            }
+
+        today = datetime.now(payment.subscription_end.tzinfo)
+
+
+        if not payment.subscription_end:
+            return {
+                "success": False,
+                "status": 400,
+                "message": "User's subscription end date not available",
+                "data": None
+            }
+
+        # Calculate days left
+        days_left = (payment.subscription_end - today).days
+
+        if days_left < 0:
+            return {
+                "success": False,
+                "status": 400,
+                "message": "User's subscription has already expired",
+                "data": None
+            }
+
+        # Prepare email content
+        subject = "Subscription Expiry Reminder!"
+        body = f"""
+            Dear {user.full_name},
+
+            We hope this message finds you well.
+
+            This is a kind reminder from Nutridiet Mitra that your subscription is set to expire on {payment.subscription_end.strftime('%B %d, %Y')}.  
+            You have {days_left} days remaining on your current plan.
+
+            To continue enjoying uninterrupted access to our personalized diet plans, expert consultations, and premium services, we encourage you to renew your subscription before it expires.
+
+            Renew today and stay committed to your health journey with Nutridiet Mitra!
+
+            If you have any questions or need assistance, feel free to reach out to us.
+
+            Warm regards,  
+            The Nutridiet Mitra Team
+            www.nutridietmitra.com
+        """
+
+        # Send email
+        try:
+            utilities.send_email(
+                to_email=user.email,
+                subject=subject,
+                body=body
+            )
+        except Exception as e:
+            logging.error(f"Failed to send email to {user.email}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to send email. Please try again later.",
+            )
+
+        return {
+            "success": True,
+            "status": 200,
+            "message": f"Reminder email sent to {user.email} ({days_left} days left)",
+            "data": {
+                "user_id": user.id,
+                "email": user.email,
+                "days_left": days_left
+            }
+        }
+
+    except Exception as e:
+        logging.error(f"An error occurred while sending subscription reminder: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later.",
