@@ -6,17 +6,20 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def send_email(to_email: str, subject: str, body: str):
-    from_email =  os.environ['EMAIL']
-    from_password = os.environ['APP_PASSWORD']
 
+def send_email(to_email: str, subject: str, body: str, is_html: bool = False):
+    from_email = os.environ['EMAIL']
+    from_password = os.environ['APP_PASSWORD']
 
     msg = MIMEMultipart()
     msg["From"] = from_email
     msg["To"] = to_email
     msg["Subject"] = subject
 
-    msg.attach(MIMEText(body, "plain"))
+    if is_html:
+        msg.attach(MIMEText(body, "html"))  # HTML part
+    else:
+        msg.attach(MIMEText(body, "plain"))  # Plain text
 
     server = smtplib.SMTP("smtp.gmail.com", 587)
     server.starttls()

@@ -1,37 +1,33 @@
-import requests
-import enum
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from fastapi import APIRouter, Depends, HTTPException, Request, Body
-from loguru import logger as logging
-from src.database import Database
-from src.routers.payment.schemas import CreatePaymentLinkSchema, PaymentWebhookSchema,ReminderRequest
-from src.routers.payment.models import Payment
-from src.utils.jwt import get_email_from_token
-from ..users.models import User
-import requests
-import random
 import os
-from dotenv import load_dotenv
-# OAuth2 token authentication (for securing payment routes)
-from fastapi.security import OAuth2PasswordBearer
+import enum
+import requests
 from . import  utilities
-from fastapi import APIRouter, Body, Depends, HTTPException, status, Request
+from sqlalchemy import func
+from dotenv import load_dotenv
+from src.database import Database
+from sqlalchemy.orm import Session
+from loguru import logger as logging
+from src.routers.users.models import User
+from src.utils.jwt import get_email_from_token
+from fastapi.security import OAuth2PasswordBearer
+from datetime import datetime, timezone, timedelta
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+from src.routers.payment.models import Payment,DailyNotification
+from fastapi import APIRouter, Depends, HTTPException, Request, Body,status
+from src.routers.payment.schemas import CreatePaymentLinkSchema, PaymentWebhookSchema,ReminderRequest
+
 load_dotenv()
 
 # X_API_VERSION = os.getenv('X_API_VERSION') 
 # X_CLIENT_ID = os.getenv('X_CLIENT_ID')
 # X_CLIENT_SECRET = os.getenv('X_CLIENT_SECRET')
-X_API_VERSION = "2025-01-01"#os.getenv('X_API_VERSION', 'v1')  # Default version 'v1'
-X_CLIENT_ID = "TEST10336412a92793060b4d3d8cd83521463301"#os.getenv('X_CLIENT_ID', 'default-client-id')
-X_CLIENT_SECRET ="cfsk_ma_test_aff7e27bb247244e4bde9c8c7e77d9c7_489509d5" #os.getenv('X_CLIENT_SECRET', 'default-secret-key')
+X_API_VERSION = "2025-01-01"
+X_CLIENT_ID = "TEST10336412a92793060b4d3d8cd83521463301"
+X_CLIENT_SECRET ="cfsk_ma_test_aff7e27bb247244e4bde9c8c7e77d9c7_489509d5" 
 
 
 # Dependency to get database session
 db_util = Database()
-
 def get_db():
     db = db_util.get_session()
     try:
@@ -52,7 +48,6 @@ class PaymentStatusEnum(str, enum.Enum):
     successful = "successful"
     failed = "failed"
 
-# from fastapi import Request  # Import Request
 
 @router.post("/create-payment-link", response_model=dict)
 def create_payment_link(
@@ -433,6 +428,104 @@ def send_subscription_reminder(request_data: ReminderRequest, request: Request, 
 
     except Exception as e:
         logging.error(f"An error occurred while sending subscription reminder: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred. Please try again later.",
+        )
+        
+
+@router.get("/get-expiring-subscriptions", status_code=200)
+def get_expiring_subscriptions(request: Request, db: Session = Depends(get_db)):
+    try:
+        # Authorization check
+        token = request.headers.get("Authorization")
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization token missing",
+            )
+        token = token.split(" ")[1]
+        email = get_email_from_token(token)
+
+        # Check if admin
+        admin_user = db.query(User).filter(User.email == email).first()
+        if not admin_user:
+            return {
+                "success": False,
+                "status": 404,
+                "message": "Admin user not found",
+                "data": None
+            }
+
+        if admin_user.role != "admin":
+            return {
+                "success": False,
+                "status": 403,
+                "message": "You are not authorized to access this resource",
+                "data": None
+            }
+
+        today = datetime.now(timezone.utc)  # <-- timezone aware
+        next_week = today + timedelta(days=7)
+
+        expiring_payments = db.query(Payment).filter(
+            Payment.subscription_end >= today,
+            Payment.subscription_end <= next_week
+        ).all()
+
+        users_data = []
+        for payment in expiring_payments:
+            user = db.query(User).filter(User.id == payment.user_id).first()
+            if not user:
+                continue
+
+            days_left = (payment.subscription_end - today).days  # ✅ will work now
+
+            users_data.append({
+                "user_id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "subscription_end": payment.subscription_end.strftime("%Y-%m-%d"),
+                "days_left": days_left
+            })
+
+
+        # 🛡️ Check last sent date from DB
+        notification = db.query(DailyNotification).filter_by(notification_type="expiring_subscriptions").first()
+
+        if not notification or notification.last_sent_date != today:
+            # First time today -> Send mail
+            if users_data:
+                html_body = "<h3>Upcoming Subscription Expirations</h3><ul>"
+                for user_data in users_data:
+                    html_body += f"<li><strong>{user_data['full_name']}</strong> ({user_data['email']}) - Subscription ends on {user_data['subscription_end']} ({user_data['days_left']} days left)</li>"
+                html_body += "</ul>"
+
+                utilities.send_email(
+                    subject="⚡ Expiring User Subscriptions Alert",
+                    to_email=admin_user.email,   # ✅ corrected from `to` to `to_email`
+                    body=html_body,
+                    is_html=True
+                )
+
+
+            # 🔥 Update or Insert today's date
+            if not notification:
+                notification = DailyNotification(notification_type="expiring_subscriptions", last_sent_date=today)
+                db.add(notification)
+            else:
+                notification.last_sent_date = today
+            db.commit()
+
+        return {
+            "success": True,
+            "status": 200,
+            "message": "Expiring users fetched successfully.",
+            "data": users_data
+        }
+
+    except Exception as e:
+        logging.error(f"An error occurred while fetching expiring subscriptions: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later.",

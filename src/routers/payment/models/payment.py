@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, Text, TIMESTAMP
+from sqlalchemy import Column, Integer, String, ForeignKey, Numeric, Text, TIMESTAMP,Date
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 # from .models import Base  # Ensure this imports from the correct place
@@ -32,3 +32,12 @@ class Payment(Base):
 
     def __repr__(self):
         return f"<Payment(id={self.id}, user_id={self.user_id}, amount={self.amount}, status={self.status})>"
+
+
+# src/models/daily_notification.py
+class DailyNotification(Base):
+    __tablename__ = "daily_notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    notification_type = Column(String, unique=True)
+    last_sent_date = Column(Date)
