@@ -21,8 +21,8 @@ app = FastAPI(
 origins = [
     "http://localhost:5173",    # Frontend during development
     "http://127.0.0.1:5173",    # Alternate localhost
-    "http://localhost:3000",    # Frontend during development
-    "http://127.0.0.1:3000",    # Alternate localhost
+    "http://localhost:3001",    # Frontend during development
+    "http://127.0.0.1:3001",    # Alternate localhost
     "https://nutridietmitra.com"  # Production domain
 ]
 
