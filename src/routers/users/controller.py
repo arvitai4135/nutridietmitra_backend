@@ -76,7 +76,7 @@ def send_password_reset_email(email: str, token: str):
         logging.error("EMAIL or APP_PASSWORD is not set in the environment variables.")
         raise ValueError("Email credentials are missing.")
 
-    reset_link = f"https://backend.nutridietmitra.com/api/users/reset-password?token={token}"
+    reset_link = f"https://nutridietmitra.com/reset-password?token={token}"
     subject = "Password Reset Request"
     body = f"Click the following link to reset your password: {reset_link}"
 
