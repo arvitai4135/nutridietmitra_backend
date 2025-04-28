@@ -2,7 +2,7 @@
 from datetime import datetime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime, Text, ARRAY
+from sqlalchemy import Column, Integer, String, DateTime, Text, ARRAY,Boolean
 
 
 Base = declarative_base()
@@ -17,6 +17,6 @@ class Blog(Base):
     publish_date = Column(DateTime, default=datetime.utcnow)
     categories = Column(ARRAY(String), nullable=True)
     body = Column(JSONB, nullable=False)
-    
+    status = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
