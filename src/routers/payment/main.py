@@ -116,7 +116,7 @@ def create_payment_link(
         "link_id": link_id,
         "link_meta": {
             "notify_url": "https://ee08e626ecd88c61c85f5c69c0418cb5.m.pipedream.net",
-            "return_url": "https://www.cashfree.com/devstudio/thankyou",
+            "return_url": "https://nutridietmitra.com/order-confirmation",
         },
         "link_notify": {"send_email": True},
     }
@@ -354,7 +354,6 @@ def get_payment_history(request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred. Please try again later.",
         )
-
 
 
 @router.post("/send-subscription-reminder", status_code=200)
