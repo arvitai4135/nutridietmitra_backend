@@ -18,6 +18,8 @@ class UserResponseData(BaseModel):
     profile_path: Optional[str] = None
     status: Optional[str] = None
     role: Optional[str] = None  # Add role if necessary for admins
+    
+     
 
     class Config:
         orm_mode = True
@@ -64,7 +66,15 @@ class TokenResponse(BaseModel):
     isActive: bool
     message: str
     data: Optional[dict]  # Data can be None or a dictionary
-    
+
+class PlanInfo(BaseModel):
+    plan_type: Optional[str]
+    plan_name: Optional[str]
+    plan_category: Optional[str]
+
+    class Config:
+        orm_mode = True
+        
 class UserData(BaseModel):
     id: int
     email: str
@@ -73,7 +83,12 @@ class UserData(BaseModel):
     profile_path: Optional[str]
     role : Optional[str] = None
     status: str
-
+    
+    # Add these:
+    # New fields
+    meal_plan: Optional[PlanInfo] = None
+    subscription_plan: Optional[PlanInfo] = None
+    
     class Config:
         orm_mode = True  # Ensures compatibility with SQLAlchemy models
         # Ensure that datetime fields are serialized as strings

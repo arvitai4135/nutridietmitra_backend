@@ -13,7 +13,8 @@ from .users import (
     ChangePasswordSchema,
     ForgotPasswordSchema,
     ResetPasswordSchema,
-    UserProfilePathResponse
+    UserProfilePathResponse,
+    PlanInfo
 )
 
 
@@ -32,5 +33,6 @@ __all__ =[
     "ChangePasswordSchema",
     "ForgotPasswordSchema",
     "ResetPasswordSchema",
-    "UserProfilePathResponse"
+    "UserProfilePathResponse",
+    "PlanInfo"
 ]

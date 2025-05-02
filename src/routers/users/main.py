@@ -14,7 +14,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 from src.routers.users.schemas import LoginSchema, TokenResponse
 from fastapi import APIRouter, Depends, HTTPException,status,Request
 from src.utils.jwt import create_access_token, get_email_from_token,create_refresh_token
-
+from src.routers.payment import  models as paymentmodels
 # Dependency to get database session
 db_util = Database()
 
@@ -109,59 +109,55 @@ def login(user_credentials: LoginSchema = Body(...), db: Session = Depends(get_d
             "data": None
         }
 
+meal_plans = ["single_meal", "weekly_meal_plan", "monthly_meal_plan"]
+month_plans = ["one_month", "two_months", "three_months", "six_months"]
 
 @router.get("/info", response_model=schemas.UserResponse)
 def get_user_info(request: Request, db: Session = Depends(get_db)):
-    """
-    Endpoint to fetch user information using the JWT token.
-    """
     try:
-        # Get the token from the Authorization header
         token = request.headers.get("Authorization")
-
-        # Check if the token is missing
-        if not token:
+        if not token or not token.startswith("Bearer "):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token is missing",
+                detail="Invalid or missing token.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-
-        # Ensure the token follows the "Bearer <token>" format
-        if not token.startswith("Bearer "):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid token format. Token must start with 'Bearer'.",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-
-        # Extract the actual token part
         token = token.split(" ")[1]
-
-        # Get the email from the token
         email = get_email_from_token(token)
-        print(email)
-        # Fetch the user from the database using the email
+
         user = db.query(models.User).filter(models.User.email == email).first()
-
-        # Check if the user exists in the database
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found. Please ensure the token is valid.",
-            )
-
-        # Check if the user account is active
+            raise HTTPException(status_code=404, detail="User not found.")
         if not user.status:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Your account is inactive. Please contact support.",
-            )
+            raise HTTPException(status_code=403, detail="Your account is inactive.")
 
-        # Log the user's role
-        logging.info(f"User role for {user.email}: {user.role}    {user.full_name}")
 
-        # Return the structured response with the user's role included
+        # Fetch all payments by user
+        payments = (
+            db.query(paymentmodels.Payment)
+            .filter(paymentmodels.Payment.user_id == user.id)
+            .order_by(paymentmodels.Payment.created_at.desc())
+            .all()
+        )
+
+        meal_plan = None
+        subscription_plan = None
+
+        for payment in payments:
+            if not meal_plan and payment.plan_type in meal_plans:
+                meal_plan = {
+                    "plan_type": payment.plan_type,
+                    "plan_name": payment.plan_type,
+                    "plan_category": "meal_plan"
+                }
+            elif not subscription_plan and payment.plan_type in month_plans:
+                subscription_plan = {
+                    "plan_type": payment.plan_type,
+                    "plan_name": payment.plan_type,
+                    "plan_category": "subscription_plan"
+                }
+
+        # You can return both in the response
         return {
             "success": True,
             "status": 200,
@@ -175,16 +171,17 @@ def get_user_info(request: Request, db: Session = Depends(get_db)):
                 "profile_path": user.profile_path,
                 "role": user.role,
                 "status": user.status,
+                "meal_plan": meal_plan,
+                "subscription_plan": subscription_plan
             },
         }
 
     except HTTPException as http_exc:
         raise http_exc
-
     except Exception as e:
-        logging.error(f"An unexpected error occurred: {e}")
+        logging.error(f"Unexpected error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail="An unexpected error occurred. Please try again later.",
         )
 
