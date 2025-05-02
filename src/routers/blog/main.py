@@ -1,6 +1,9 @@
 # src/routers/blog/main.py
+import shutil
+import requests
 from . import models
 from . import  schemas
+from pathlib import Path
 from datetime import datetime
 from src.utils.db import get_db
 from sqlalchemy.orm import Session
@@ -65,6 +68,41 @@ def create_blog(blog: schemas.BlogCreate, request: Request, db: Session = Depend
     db.add(new_blog)
     db.commit()
     db.refresh(new_blog)
+    
+    # Folder to save images
+    blog_folder = Path(f"public/blog/{new_blog.id}")
+    blog_folder.mkdir(parents=True, exist_ok=True)
+
+    # Process body content
+    updated_body = []
+    for block in blog.body:
+        block_data = block.dict()
+
+        if block_data.get("type") == "image":
+            image_url = block_data.get("url")
+            try:
+                # Download image
+                response = requests.get(image_url, stream=True)
+                if response.status_code == 200:
+                    filename = image_url.split("/")[-1]  # Take filename from URL
+                    image_path = blog_folder / filename
+
+                    with open(image_path, "wb") as f:
+                        shutil.copyfileobj(response.raw, f)
+                    
+                    # Update block to point to local server URL
+                    block_data["url"] = f"/public/blog/{new_blog.id}/{filename}"
+                else:
+                    raise Exception("Failed to download image")
+            except Exception as e:
+                print(f"Error downloading image: {e}")
+                continue  # skip this image if any error
+
+        updated_body.append(block_data)
+
+    # Update blog body with new URLs
+    new_blog.body = updated_body
+    db.commit()
 
     return new_blog
 
@@ -223,4 +261,12 @@ def update_blog(blog_id: int, blog_update: schemas.BlogCreate, request: Request,
     db.commit()
     db.refresh(blog)
 
+    return blog
+
+# Public endpoint to fetch blog by slug
+@router.get("/slug/{slug}")
+def get_blog_by_slug(slug: str, db: Session = Depends(get_db)):
+    blog = db.query(models.Blog).filter(models.Blog.slug == slug).first()
+    if not blog:
+        raise HTTPException(status_code=404, detail="Blog not found")
     return blog
