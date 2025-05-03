@@ -223,7 +223,16 @@ def get_blog(blog_id: int, db: Session = Depends(get_db)):
         blog = db.query(models.Blog).filter(models.Blog.id == blog_id).first()
         if not blog:
             raise HTTPException(status_code=404, detail="Blog not found")
-        
+
+        # Update image URLs in body
+        updated_body = []
+        for block in blog.body:
+            if isinstance(block, dict) and block.get("type") == "image" and "url" in block:
+                relative_url = block["url"].lstrip("/")
+                full_url = f"https://nutridietmitra.com/{relative_url}"
+                block["url"] = full_url
+            updated_body.append(block)
+
         return {
             "success": True,
             "status": 200,
@@ -235,19 +244,20 @@ def get_blog(blog_id: int, db: Session = Depends(get_db)):
                 "slug": blog.slug,
                 "publish_date": blog.publish_date,
                 "categories": blog.categories,
-                "body": blog.body,
-                "status":blog.status,
+                "body": updated_body,
+                "status": blog.status,
                 "created_at": blog.created_at,
                 "updated_at": blog.updated_at
             }
         }
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while fetching blog: {str(e)}"
         )
 
-# ✅ Get all blogs
+#
 @router.get("/all_blog_lists", status_code=200)
 def get_all_blogs(db: Session = Depends(get_db)):
     try:
@@ -262,6 +272,15 @@ def get_all_blogs(db: Session = Depends(get_db)):
 
         blog_list = []
         for blog in blogs:
+            # Update image URLs in body
+            updated_body = []
+            for block in blog.body:
+                if isinstance(block, dict) and block.get("type") == "image" and "url" in block:
+                    relative_url = block["url"].lstrip("/")
+                    full_url = f"https://nutridietmitra.com/{relative_url}"
+                    block["url"] = full_url
+                updated_body.append(block)
+
             blog_list.append({
                 "id": blog.id,
                 "title": blog.title,
@@ -269,8 +288,8 @@ def get_all_blogs(db: Session = Depends(get_db)):
                 "slug": blog.slug,
                 "publish_date": blog.publish_date,
                 "categories": blog.categories,
-                "body": blog.body,
-                "status":blog.status,
+                "body": updated_body,
+                "status": blog.status,
                 "created_at": blog.created_at,
                 "updated_at": blog.updated_at
             })
@@ -286,6 +305,7 @@ def get_all_blogs(db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred while fetching blogs: {str(e)}"
         )
+
         
 @router.delete("/delete/{blog_id}", status_code=200)
 def delete_blog(blog_id: int, request: Request, db: Session = Depends(get_db)):
