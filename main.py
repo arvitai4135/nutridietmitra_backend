@@ -1,8 +1,9 @@
 import uvicorn
-from fastapi.responses import RedirectResponse
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from src.config import APPNAME, VERSION
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
 from src.routers import (users_router, 
                          feedback_router,
                          dashboard_route, 
@@ -60,6 +61,8 @@ def forward_to_login():
     Redirect to token-generation (`/auth/token`). Used to make Auth in Swagger-UI work.
     """
     return RedirectResponse(url="/token")
+
+app.mount("/public", StaticFiles(directory="public"), name="public")
 
 
 # @app.get("/api")
