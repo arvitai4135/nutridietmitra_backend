@@ -195,9 +195,16 @@ def create_blog(request: Request,
                     image_path = blog_folder / filename
                     with open(image_path, "wb") as f:
                         shutil.copyfileobj(matched_file.file, f)
+                    
+                    # Get image dimensions
+                    from PIL import Image
+                    with Image.open(image_path) as img:
+                        width, height = img.size
 
                     # Update the image URL in the block data
                     block_data["url"] = f"/public/blog/{new_blog.id}/{filename}"
+                    block_data["width"] = width
+                    block_data["height"] = height
                     image_counter += 1
                 except Exception as e:
                     print(f"Error saving image: {e}")
